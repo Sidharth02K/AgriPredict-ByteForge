@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -15,6 +16,7 @@ from app.services.ml_service import ml_service
 from app.services.recommendation_service import recommendation_service
 from app.services.risk_service import risk_service
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1",
@@ -68,11 +70,23 @@ def create_prediction(
 
         input_data = request.model_dump()
 
+        logger.info(
+            "Prediction request received: location=%s crop=%s season=%s",
+            request.location,
+            request.crop_type,
+            request.season,
+        )
+
         # -----------------------------------------------------
         # 3. Run ML prediction
         # -----------------------------------------------------
 
         predicted_yield = ml_service.predict(input_data)
+
+        logger.info(
+            "ML prediction completed: yield=%.4f tonnes/ha",
+            predicted_yield,
+        )
 
         # Prevent invalid numerical results from entering
         # the database/API response.
@@ -169,6 +183,11 @@ def create_prediction(
         db.add(record)
         db.commit()
         db.refresh(record)
+        logger.info(
+            "Prediction saved successfully: id=%s risk=%s",
+            record.id,
+            record.risk_level,
+        )
 
         # -----------------------------------------------------
         # 10. Return frontend-friendly response
@@ -199,6 +218,9 @@ def create_prediction(
     except Exception as exc:
         # Roll back the database transaction if anything failed
         # after the transaction began.
+        logger.exception(
+            "Prediction processing failed"
+        )
         db.rollback()
 
         raise HTTPException(

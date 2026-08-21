@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -13,6 +15,7 @@ from app.schemas.prediction_schema import (
 )
 from app.services.risk_service import risk_service
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1",
@@ -44,6 +47,12 @@ def get_prediction_history(
     Most recent predictions are returned first.
     """
 
+    logger.info(
+        "Prediction history requested: page=%s page_size=%s",
+        page,
+        page_size,
+    )
+
     total = db.query(PredictionRecord).count()
 
     offset = (page - 1) * page_size
@@ -54,6 +63,12 @@ def get_prediction_history(
         .offset(offset)
         .limit(page_size)
         .all()
+    )
+
+    logger.info(
+        "Prediction history returned: total=%s items=%s",
+        total,
+        len(records),
     )
 
     items = [
@@ -95,7 +110,16 @@ def get_prediction(
         prediction_id,
     )
 
+    logger.info(
+        "Prediction detail requested: id=%s",
+        prediction_id,
+    )
     if record is None:
+        logger.warning(
+            "Prediction not found: id=%s",
+            prediction_id,
+        )
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Prediction with ID {prediction_id} was not found.",
