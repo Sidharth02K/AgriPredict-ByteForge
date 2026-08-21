@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database.session import Base, engine
 from app.models.prediction_model import PredictionRecord
 from app.routes.predict_routes import router as predict_router
+from app.routes.history_routes import router as history_router
 from app.services.ml_service import ml_service
 
 
@@ -69,6 +70,7 @@ app.add_middleware(
 # ---------------------------------------------------------
 
 app.include_router(predict_router)
+app.include_router(history_router)
 
 
 # ---------------------------------------------------------

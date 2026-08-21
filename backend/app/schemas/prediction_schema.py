@@ -72,3 +72,30 @@ class AnalyticsSummaryResponse(BaseModel):
     risk_distribution: dict[str, int]
 
     top_crops_evaluated: List[dict[str, object]]
+
+class PredictionHistoryItem(BaseModel):
+    """
+    Compact prediction record for the history list.
+    """
+
+    id: int
+    location: str
+    crop_type: str
+    season: str
+
+    expected_yield_tonnes_per_ha: float
+    total_production_tonnes: float
+
+    risk_level: str
+    created_at: datetime
+
+
+class PredictionHistoryResponse(BaseModel):
+    """
+    Paginated response returned by the history endpoint.
+    """
+
+    total: int
+    page: int
+    page_size: int
+    items: List[PredictionHistoryItem]
