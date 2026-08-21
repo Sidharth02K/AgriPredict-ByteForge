@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy import DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -150,6 +152,34 @@ class PredictionRecord(Base):
         default=lambda: datetime.now(timezone.utc),
         index=True,
     )
+
+        # ---------------------------------------------------------
+    # JSON deserialization helpers
+    # ---------------------------------------------------------
+
+    def get_risk_factors(self) -> list[str]:
+        """Return stored risk factors as a Python list."""
+        try:
+            value = json.loads(self.risk_factors_json or "[]")
+            return value if isinstance(value, list) else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def get_key_drivers(self) -> list[dict[str, Any]]:
+        """Return stored SHAP drivers as a Python list of dictionaries."""
+        try:
+            value = json.loads(self.key_drivers_json or "[]")
+            return value if isinstance(value, list) else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def get_recommendations(self) -> list[str]:
+        """Return stored recommendations as a Python list."""
+        try:
+            value = json.loads(self.recommendations_json or "[]")
+            return value if isinstance(value, list) else []
+        except (json.JSONDecodeError, TypeError):
+            return []
 
     def __repr__(self) -> str:
         return (
