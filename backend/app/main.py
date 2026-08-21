@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.exceptions import unhandled_exception_handler
 from app.database.session import Base, engine
 from app.models.prediction_model import PredictionRecord
 from app.routes.predict_routes import router as predict_router
@@ -47,6 +48,11 @@ app = FastAPI(
     ),
     version="1.0.0",
     lifespan=lifespan,
+)
+
+app.add_exception_handler(
+    Exception,
+    unhandled_exception_handler,
 )
 
 
