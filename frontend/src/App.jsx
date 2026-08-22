@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { getPredictionHistory } from './services/api'
 import {
   LayoutDashboard,
   History,
   BarChart3,
   Sprout,
 } from 'lucide-react'
+import HistoryPage from './pages/History'
 import {
   BarChart,
   Bar,
@@ -22,8 +24,22 @@ import {
 
 import Prediction from './pages/Prediction'
 
-function App() {
-    const [currentPage, setCurrentPage] = useState('dashboard')
+    function App() {
+  const [currentPage, setCurrentPage] = useState('dashboard')
+  const [latestPrediction, setLatestPrediction] = useState(null)
+
+  useEffect(() => {
+    async function loadLatestPrediction() {
+      try {
+        const result = await getPredictionHistory()
+        setLatestPrediction(result.items?.[0] || null)
+      } catch (error) {
+        console.error('Failed to load latest prediction:', error)
+      }
+    }
+
+    loadLatestPrediction()
+  }, [])
   return (
     <div className="min-h-screen bg-[#f6f8f3] text-slate-800">
 
@@ -149,8 +165,10 @@ function App() {
 
         <div className="mt-3 flex items-baseline gap-2">
           <span className="text-3xl font-bold text-slate-800">
-            4.26
-          </span>
+  {latestPrediction
+    ? latestPrediction.expected_yield_tonnes_per_ha.toFixed(2)
+    : '—'}
+</span>
 
           <span className="text-sm text-slate-400">
             tonnes / hectare
@@ -158,8 +176,10 @@ function App() {
         </div>
 
         <p className="mt-2 text-sm text-slate-500">
-          Wheat · Gujarat
-        </p>
+  {latestPrediction
+    ? `${latestPrediction.crop_type} · ${latestPrediction.location}`
+    : 'No predictions yet'}
+</p>
 
       </div>
 
@@ -171,15 +191,30 @@ function App() {
         </p>
 
         <div className="mt-3">
-          <span className="inline-flex rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">
-            🟢 Low Risk
-          </span>
+          <span
+  className={`inline-flex rounded-full px-4 py-2 text-sm font-semibold ${
+    latestPrediction?.risk_level === 'LOW'
+      ? 'bg-green-100 text-green-700'
+      : latestPrediction?.risk_level === 'HIGH'
+        ? 'bg-red-100 text-red-700'
+        : 'bg-yellow-100 text-yellow-700'
+  }`}
+>
+  {latestPrediction?.risk_level === 'LOW'
+    ? '🟢 Low Risk'
+    : latestPrediction?.risk_level === 'HIGH'
+      ? '🔴 High Risk'
+      : '🟡 Moderate Risk'}
+</span>
         </div>
 
         <p className="mt-3 text-sm text-slate-500">
-          Conditions currently look favorable.
-        </p>
-
+  {latestPrediction?.risk_level === 'HIGH'
+    ? 'Current conditions may negatively affect the selected crop.'
+    : latestPrediction?.risk_level === 'LOW'
+      ? 'Conditions currently look favorable.'
+      : 'Conditions require some attention.'}
+</p>
       </div>
 
     </div>
@@ -539,139 +574,91 @@ function WindAnimation() {
     </div>
   )
 }
-function HistoryPage() {
-  const predictions = [
-    {
-      crop: 'Wheat',
-      location: 'Gujarat',
-      season: 'Rabi',
-      yield: '4.26',
-      risk: 'Low',
-      rainfall: '480 mm',
-      temperature: '24°C',
-    },
-    {
-      crop: 'Rice',
-      location: 'Punjab',
-      season: 'Kharif',
-      yield: '3.82',
-      risk: 'Moderate',
-      rainfall: '620 mm',
-      temperature: '27°C',
-    },
-    {
-      crop: 'Maize',
-      location: 'Karnataka',
-      season: 'Kharif',
-      yield: '3.45',
-      risk: 'Low',
-      rainfall: '550 mm',
-      temperature: '25°C',
-    },
-  ]
 
-  return (
-    <div className="space-y-8">
-
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-wider text-green-600">
-          History
-        </p>
-
-        <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-800">
-          Your previous predictions
-        </h2>
-
-        <p className="mt-2 text-slate-500">
-          Review the crop yield predictions you have made.
-        </p>
-      </div>
-
-      <div className="space-y-4">
-
-        {predictions.map((prediction, index) => (
-          <div
-            key={index}
-            className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm"
-          >
-
-            <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
-
-              <div>
-
-                <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-semibold text-slate-800">
-                    {prediction.crop}
-                  </h3>
-
-                  <span className="text-sm text-slate-400">
-                    · {prediction.location}
-                  </span>
-                </div>
-
-                <p className="mt-2 text-sm text-slate-500">
-                  {prediction.season} · {prediction.rainfall} rainfall ·{' '}
-                  {prediction.temperature}
-                </p>
-
-              </div>
-
-              <div className="flex items-center gap-5">
-
-                <div>
-                  <p className="text-2xl font-bold text-slate-800">
-                    {prediction.yield}
-                  </p>
-
-                  <p className="text-xs text-slate-400">
-                    tonnes / hectare
-                  </p>
-                </div>
-
-                <span
-                  className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
-                    prediction.risk === 'Low'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-yellow-100 text-yellow-700'
-                  }`}
-                >
-                  {prediction.risk === 'Low' ? '🟢' : '🟡'}{' '}
-                  {prediction.risk} Risk
-                </span>
-
-              </div>
-
-            </div>
-
-          </div>
-        ))}
-
-      </div>
-
-    </div>
-  )
-}
 function AnalyticsPage() {
-  const cropData = [
-    { crop: 'Wheat', yield: 4.26 },
-    { crop: 'Rice', yield: 3.82 },
-    { crop: 'Maize', yield: 3.45 },
-    { crop: 'Cotton', yield: 2.91 },
-  ]
+  const [history, setHistory] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const trendData = [
-    { prediction: '1', yield: 3.45 },
-    { prediction: '2', yield: 3.72 },
-    { prediction: '3', yield: 3.58 },
-    { prediction: '4', yield: 4.02 },
-    { prediction: '5', yield: 3.82 },
-    { prediction: '6', yield: 4.26 },
-  ]
+  useEffect(() => {
+    async function loadAnalyticsData() {
+      try {
+        const result = await getPredictionHistory()
+        setHistory(result.items || [])
+      } catch (error) {
+        console.error('Failed to load analytics data:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadAnalyticsData()
+  }, [])
+
+  const cropTotals = {}
+
+  history.forEach((prediction) => {
+    const crop = prediction.crop_type
+
+    if (!cropTotals[crop]) {
+      cropTotals[crop] = {
+        total: 0,
+        count: 0,
+      }
+    }
+
+    cropTotals[crop].total += prediction.expected_yield_tonnes_per_ha
+    cropTotals[crop].count += 1
+  })
+
+  const cropData = Object.entries(cropTotals).map(
+    ([crop, data]) => ({
+      crop,
+      yield: Number((data.total / data.count).toFixed(2)),
+    })
+  )
+
+  const trendData = [...history]
+    .reverse()
+    .map((prediction, index) => ({
+      prediction: String(index + 1),
+      yield: Number(
+        prediction.expected_yield_tonnes_per_ha.toFixed(2)
+      ),
+    }))
+
+  const riskCounts = {
+    LOW: 0,
+    MODERATE: 0,
+    HIGH: 0,
+  }
+
+  history.forEach((prediction) => {
+    if (riskCounts[prediction.risk_level] !== undefined) {
+      riskCounts[prediction.risk_level] += 1
+    }
+  })
+
+  const totalPredictions = history.length
 
   const riskData = [
-    { name: 'Low Risk', value: 75 },
-    { name: 'Moderate Risk', value: 20 },
-    { name: 'High Risk', value: 5 },
+    {
+      name: 'Low Risk',
+      value: totalPredictions
+        ? Math.round((riskCounts.LOW / totalPredictions) * 100)
+        : 0,
+    },
+    {
+      name: 'Moderate Risk',
+      value: totalPredictions
+        ? Math.round((riskCounts.MODERATE / totalPredictions) * 100)
+        : 0,
+    },
+    {
+      name: 'High Risk',
+      value: totalPredictions
+        ? Math.round((riskCounts.HIGH / totalPredictions) * 100)
+        : 0,
+    },
   ]
 
   return (

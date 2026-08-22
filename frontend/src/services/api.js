@@ -23,6 +23,7 @@ export async function predictCropYield(formData) {
     }
   )
 
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => null)
 
@@ -39,4 +40,20 @@ return {
   yield: data.expected_yield_tonnes_per_ha,
   risk: data.risk_level,
 }
+}
+export async function getPredictionHistory() {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/history?page=1&page_size=100`
+  )
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null)
+
+    throw new Error(
+      errorData?.detail ||
+      'Unable to load prediction history.'
+    )
+  }
+
+  return response.json()
 }
