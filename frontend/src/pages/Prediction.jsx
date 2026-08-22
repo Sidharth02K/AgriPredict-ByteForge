@@ -9,6 +9,8 @@ import {
   Leaf,
 } from 'lucide-react'
 
+import { predictCropYield } from '../services/api'
+
 function Prediction() {
   const [formData, setFormData] = useState({
     crop: '',
@@ -22,6 +24,8 @@ function Prediction() {
     potassium: '',
   })
   const [prediction, setPrediction] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleChange = (field, value) => {
     setFormData((previous) => ({
@@ -30,11 +34,26 @@ function Prediction() {
     }))
   }
 
-  const handlePredict = () => {
-  setPrediction({
-    yield: 4.26,
-    risk: 'Low',
-  })
+  const handlePredict = async () => {
+  setIsLoading(true)
+  setError('')
+  setPrediction(null)
+
+  try {
+    const result = await predictCropYield(formData)
+
+    setPrediction(result)
+  } catch (error) {
+    setError(
+      error.message ||
+      'Unable to connect to the AgriPredict server. Please make sure the backend is running.'
+    )
+  } finally {
+    setIsLoading(false)
+  }
+}
+const handleNewPrediction = () => {
+  setPrediction(null)
 }
 
   return (
@@ -43,7 +62,11 @@ function Prediction() {
 
       {/* Page header */}
             {prediction ? (
-  <PredictionResult prediction={prediction} />
+  <PredictionResult
+    prediction={prediction}
+    formData={formData}
+    onNewPrediction={handleNewPrediction}
+  />
 ) : (
       <div className="rounded-3xl border border-green-100 bg-white p-8 shadow-sm">
 
@@ -198,16 +221,22 @@ function Prediction() {
         </div>
 
         {/* Submit */}
+        {error && (
+  <div className="mt-6 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {error}
+  </div>
+)}
         <div className="mt-8 flex justify-end">
 
           <button
-            type="button"
-            onClick={handlePredict}
-            className="flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-green-700 hover:shadow-md active:scale-[0.98]"
-          >
-            <Sprout size={18} />
-            Predict my yield
-          </button>
+  type="button"
+  onClick={handlePredict}
+  disabled={isLoading}
+  className="flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-green-700 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+>
+  <Sprout size={18} />
+  {isLoading ? 'Predicting...' : 'Predict my yield'}
+</button>
 
         </div>
 
@@ -495,7 +524,17 @@ function LocationInput({ value, onChange }) {
     </div>
   )
 }
-function PredictionResult({ prediction }) {
+function PredictionResult({
+  prediction,
+  formData,
+  onNewPrediction,
+}) {
+  const drivers = prediction.key_drivers || []
+
+const maxImpact = Math.max(
+  ...drivers.map((driver) => Math.abs(driver.impact_value)),
+  1
+)
   return (
     <div className="space-y-8">
 
@@ -551,20 +590,74 @@ function PredictionResult({ prediction }) {
 
             <div className="mt-4">
               <span className="inline-flex rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">
-                🟢 {prediction.risk} Risk
+                {prediction.risk === 'HIGH' ? '🔴' : prediction.risk === 'MODERATE' ? '🟡' : '🟢'}{' '}
+{prediction.risk} Risk
               </span>
             </div>
 
             <p className="mt-4 text-sm text-slate-500">
-              Current conditions appear favorable for the selected crop.
-            </p>
+  {prediction.risk === 'HIGH'
+    ? 'Current conditions may negatively affect the selected crop.'
+    : prediction.risk === 'MODERATE'
+      ? 'Some environmental conditions may require attention.'
+      : 'Current conditions appear favorable for the selected crop.'}
+</p>
 
           </div>
 
         </div>
 
       </div>
+      {/* Prediction inputs */}
+<div className="rounded-3xl border border-green-100 bg-white p-6 shadow-sm">
 
+  <h3 className="text-lg font-semibold text-slate-800">
+    Prediction inputs
+  </h3>
+
+  <p className="mt-1 text-sm text-slate-500">
+    The conditions used to generate this prediction.
+  </p>
+
+  <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+    <InputSummary label="Crop" value={formData.crop} />
+    <InputSummary label="Location" value={formData.location} />
+    <InputSummary label="Season" value={formData.season} />
+
+    <InputSummary
+      label="Rainfall"
+      value={`${formData.rainfall} mm`}
+    />
+
+    <InputSummary
+      label="Temperature"
+      value={`${formData.temperature} °C`}
+    />
+
+    <InputSummary
+      label="Soil pH"
+      value={formData.soilPh}
+    />
+
+    <InputSummary
+      label="Nitrogen"
+      value={`${formData.nitrogen} kg/ha`}
+    />
+
+    <InputSummary
+      label="Phosphorus"
+      value={`${formData.phosphorus} kg/ha`}
+    />
+
+    <InputSummary
+      label="Potassium"
+      value={`${formData.potassium} kg/ha`}
+    />
+
+  </div>
+
+</div>
       {/* Influencing factors */}
       <div className="grid gap-6 md:grid-cols-2">
 
@@ -580,25 +673,53 @@ function PredictionResult({ prediction }) {
 
           <div className="mt-6 space-y-5">
 
-            <ImpactBar
-              label="Rainfall"
-              value="85%"
-            />
+            <div className="mt-6 space-y-5">
+  {drivers.map((driver) => {
+    const percentage = Math.round(
+      (Math.abs(driver.impact_value) / maxImpact) * 100
+    )
 
-            <ImpactBar
-              label="Nitrogen"
-              value="72%"
-            />
+    return (
+      <div key={driver.feature}>
 
-            <ImpactBar
-              label="Temperature"
-              value="61%"
-            />
+        <div className="flex items-center justify-between">
+          <span className="font-medium text-slate-700">
+            {driver.feature}
+          </span>
 
-            <ImpactBar
-              label="Soil pH"
-              value="48%"
-            />
+          <span
+            className={`text-sm font-medium ${
+              driver.direction === 'POSITIVE'
+                ? 'text-green-600'
+                : 'text-red-500'
+            }`}
+          >
+            {driver.direction === 'POSITIVE' ? '+' : '-'}
+            {Math.abs(driver.impact_value).toFixed(2)}
+          </span>
+        </div>
+
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-green-100">
+          <div
+            className={`h-full rounded-full ${
+              driver.direction === 'POSITIVE'
+                ? 'bg-green-500'
+                : 'bg-red-400'
+            }`}
+            style={{
+              width: `${percentage}%`,
+            }}
+          />
+        </div>
+
+        <p className="mt-1 text-xs text-slate-400">
+          {driver.description}
+        </p>
+
+      </div>
+    )
+  })}
+</div>
 
           </div>
 
@@ -616,16 +737,25 @@ function PredictionResult({ prediction }) {
           </p>
 
           <div className="mt-6 space-y-4">
+  {(prediction.actionable_recommendations || []).map(
+    (recommendation, index) => (
+      <div
+        key={index}
+        className="rounded-2xl bg-green-50 p-4"
+      >
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 text-green-600">
+            ✓
+          </span>
 
-            <Insight text="Rainfall conditions look favorable." />
-
-            <Insight text="Nitrogen levels are supporting the crop." />
-
-            <Insight text="Temperature is within a reasonable range." />
-
-            <Insight text="Continue monitoring soil conditions." />
-
-          </div>
+          <p className="text-sm text-slate-600">
+            {recommendation}
+          </p>
+        </div>
+      </div>
+    )
+  )}
+</div>
 
         </div>
 
@@ -681,4 +811,18 @@ function Insight({ text }) {
     </div>
   )
 }
+function InputSummary({ label, value }) {
+  return (
+    <div className="rounded-xl bg-slate-50 p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+
+      <p className="mt-1 font-semibold text-slate-800">
+        {value}
+      </p>
+    </div>
+  )
+}
+
 export default Prediction
