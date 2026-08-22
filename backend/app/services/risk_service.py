@@ -11,7 +11,7 @@ class RiskResult:
 
     risk_level: str
     risk_factors: list[str] = field(default_factory=list)
-
+    yield_multiplier: float = 1.0
 
 class RiskService:
     """
@@ -26,7 +26,11 @@ class RiskService:
     RAINFALL_MEDIUM_THRESHOLD = 400.0
     RAINFALL_HIGH_THRESHOLD = 300.0
 
-    NITROGEN_THRESHOLD = 60.0
+    TEMPERATURE_LOW_THRESHOLD = 10.0
+    TEMPERATURE_HIGH_THRESHOLD = 40.0
+
+    NITROGEN_LOW_THRESHOLD = 60.0
+    NITROGEN_HIGH_THRESHOLD = 250.0
 
     PH_MIN = 5.5
     PH_MAX = 8.2
@@ -34,13 +38,16 @@ class RiskService:
     YIELD_HIGH_THRESHOLD = 2.0
 
     def assess(
-        self,
-        *,
-        rainfall_mm: float,
-        nitrogen_kgha: float,
-        soil_ph: float,
-        predicted_yield_tonnes_per_ha: float,
-    ) -> RiskResult:
+    self,
+    *,
+    rainfall_mm: float,
+    temperature_c: float,
+    nitrogen_kgha: float,
+    phosphorus_kgha: float,
+    potassium_kgha: float,
+    soil_ph: float,
+    predicted_yield_tonnes_per_ha: float,
+) -> RiskResult:
         """
         Evaluate the supplied farm conditions and predicted yield.
 
@@ -80,29 +87,42 @@ class RiskService:
         # 2. Nitrogen risk
         # ---------------------------------------------------------
 
-        if nitrogen_kgha < self.NITROGEN_THRESHOLD:
-            # Very low nitrogen receives HIGH severity.
-            if nitrogen_kgha < 30:
-                severity_scores.append(3)
+        if nitrogen_kgha < self.NITROGEN_LOW_THRESHOLD:
+            severity_scores.append(3)
 
-                risk_factors.append(
-                    f"Severe nitrogen deficiency: "
-                    f"{nitrogen_kgha:.1f} kg/ha. "
-                    "Crop growth and yield may be significantly affected."
-                )
+            risk_factors.append(
+                f"Low nitrogen availability: {nitrogen_kgha:.1f} kg/ha. "
+                "Nitrogen deficiency may significantly limit crop growth."
+            )
 
-            else:
-                severity_scores.append(2)
+        elif nitrogen_kgha > self.NITROGEN_HIGH_THRESHOLD:
+            severity_scores.append(3)
 
-                risk_factors.append(
-                    f"Low soil nitrogen: {nitrogen_kgha:.1f} kg/ha. "
-                    "Nitrogen availability may limit crop growth."
-                )
+            risk_factors.append(
+                f"Excessive nitrogen application: {nitrogen_kgha:.1f} kg/ha. "
+                "Excess nitrogen may damage crops and reduce nutrient balance."
+            )
 
         # ---------------------------------------------------------
         # 3. Soil pH risk
         # ---------------------------------------------------------
 
+        if temperature_c < self.TEMPERATURE_LOW_THRESHOLD:
+            severity_scores.append(3)
+
+            risk_factors.append(
+                f"Low temperature stress: {temperature_c:.1f} °C. "
+                "Cold conditions may significantly affect crop development."
+            )
+
+        elif temperature_c > self.TEMPERATURE_HIGH_THRESHOLD:
+            severity_scores.append(3)
+
+            risk_factors.append(
+                f"High temperature stress: {temperature_c:.1f} °C. "
+                "Heat stress may significantly reduce crop performance."
+            )
+        
         if soil_ph < self.PH_MIN:
             # Extremely acidic soil.
             if soil_ph < 4.5:
@@ -159,20 +179,25 @@ class RiskService:
             return RiskResult(
                 risk_level="LOW",
                 risk_factors=[],
+                yield_multiplier=1.0,
             )
 
         highest_severity = max(severity_scores)
 
         if highest_severity >= 3:
             risk_level = "HIGH"
+            yield_multiplier = 0.45
         elif highest_severity == 2:
             risk_level = "MEDIUM"
+            yield_multiplier = 0.85
         else:
             risk_level = "LOW"
+            yield_multiplier = 1.0
 
         return RiskResult(
             risk_level=risk_level,
             risk_factors=risk_factors,
+            yield_multiplier=yield_multiplier,
         )
 
 

@@ -36,6 +36,9 @@ MODEL_FEATURES = [
     "Nitrogen (kg/ha)",
     "Phosphorus (kg/ha)",
     "Potassium (kg/ha)",
+    "Total_NPK",
+    "N_Ratio",
+    "Heat_Water_Stress",
 ]
 
 
@@ -171,26 +174,49 @@ class MLService:
 
         return type(regressor).__name__
 
-    def build_dataframe(self, input_data: dict[str, Any]) -> pd.DataFrame:
+    def build_dataframe(self, input_data: dict) -> pd.DataFrame:
         """
-        Convert API input into the exact DataFrame schema expected by
-        the trained model.
+        Convert API input into the exact feature structure expected
+        by the production ML pipeline.
+
+        The three biological features below MUST match the formulas
+        used during model training.
         """
 
-        model_row = {
+        nitrogen = float(input_data["nitrogen_kgha"])
+        phosphorus = float(input_data["phosphorus_kgha"])
+        potassium = float(input_data["potassium_kgha"])
+        rainfall = float(input_data["rainfall_mm"])
+        temperature = float(input_data["temperature_c"])
+
+        # ---------------------------------------------------------
+        # Biological feature engineering
+        # MUST match ml/training/train_model.py
+        # ---------------------------------------------------------
+
+        total_npk = nitrogen + phosphorus + potassium
+
+        n_ratio = nitrogen / (total_npk + 1)
+
+        heat_water_stress = temperature / (rainfall + 1)
+
+        row = {
             "Location": input_data["location"],
             "Crop Type": input_data["crop_type"],
             "Season": input_data["season"],
-            "Rainfall (mm)": input_data["rainfall_mm"],
-            "Temperature (°C)": input_data["temperature_c"],
-            "Soil pH": input_data["soil_ph"],
-            "Nitrogen (kg/ha)": input_data["nitrogen_kgha"],
-            "Phosphorus (kg/ha)": input_data["phosphorus_kgha"],
-            "Potassium (kg/ha)": input_data["potassium_kgha"],
+            "Rainfall (mm)": rainfall,
+            "Temperature (°C)": temperature,
+            "Soil pH": float(input_data["soil_ph"]),
+            "Nitrogen (kg/ha)": nitrogen,
+            "Phosphorus (kg/ha)": phosphorus,
+            "Potassium (kg/ha)": potassium,
+            "Total_NPK": total_npk,
+            "N_Ratio": n_ratio,
+            "Heat_Water_Stress": heat_water_stress,
         }
 
         return pd.DataFrame(
-            [model_row],
+            [row],
             columns=MODEL_FEATURES,
         )
 
@@ -263,9 +289,18 @@ class MLService:
                     "model feature count."
                 )
 
-            raw_impacts = list(
-                zip(feature_names, shap_row)
-            )
+            raw_impacts = [
+                (feature_name, float(shap_value))
+                for feature_name, shap_value, actual_value in zip(
+                    feature_names,
+                    shap_row,
+                    transformed_data[0],
+                )
+                if not (
+                    feature_name.startswith("cat__")
+                    and actual_value == 0.0
+                )
+            ]
 
             grouped_impacts = self._group_shap_impacts(
                 raw_impacts
@@ -291,21 +326,15 @@ class MLService:
         preprocessor: Any,
     ) -> list[str]:
         """
-        Recover feature names after ColumnTransformer +
-        OneHotEncoder transformation.
+        Recover the exact feature names produced by the fitted
+        ColumnTransformer.
+
+        The fitted preprocessor is the single source of truth.
         """
 
-        cat_pipeline = preprocessor.named_transformers_["cat"]
-
-        encoder = cat_pipeline.named_steps["onehot"]
-
-        encoded_categories = list(
-            encoder.get_feature_names_out(
-                CATEGORICAL_FEATURES
-            )
+        return list(
+            preprocessor.get_feature_names_out()
         )
-
-        return NUMERIC_FEATURES + encoded_categories
 
     @staticmethod
     def _group_shap_impacts(
@@ -380,18 +409,21 @@ class MLService:
         """Map transformed model features to UI-friendly names."""
 
         for categorical_feature in CATEGORICAL_FEATURES:
-            prefix = f"{categorical_feature}_"
+            prefix = f"cat__{categorical_feature}_"
 
             if feature_name.startswith(prefix):
                 return categorical_feature
 
         mapping = {
-            "Rainfall (mm)": "Rainfall",
-            "Temperature (°C)": "Temperature",
-            "Soil pH": "Soil pH",
-            "Nitrogen (kg/ha)": "Soil Nitrogen",
-            "Phosphorus (kg/ha)": "Soil Phosphorus",
-            "Potassium (kg/ha)": "Soil Potassium",
+            "num__Rainfall (mm)": "Rainfall",
+            "num__Temperature (°C)": "Temperature",
+            "num__Soil pH": "Soil pH",
+            "num__Nitrogen (kg/ha)": "Soil Nitrogen",
+            "num__Phosphorus (kg/ha)": "Soil Phosphorus",
+            "num__Potassium (kg/ha)": "Soil Potassium",
+            "num__Total_NPK": "Total NPK",
+            "num__N_Ratio": "N Ratio",
+            "num__Heat_Water_Stress": "Heat Water Stress",
         }
 
         return mapping.get(

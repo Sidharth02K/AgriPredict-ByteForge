@@ -81,25 +81,19 @@ def create_prediction(
         # 3. Run ML prediction
         # -----------------------------------------------------
 
-        predicted_yield = ml_service.predict(input_data)
+        raw_predicted_yield = ml_service.predict(input_data)
 
         logger.info(
-            "ML prediction completed: yield=%.4f tonnes/ha",
-            predicted_yield,
+            "ML prediction completed: raw_yield=%.4f tonnes/ha",
+            raw_predicted_yield,
         )
 
         # Prevent invalid numerical results from entering
         # the database/API response.
-        if predicted_yield < 0:
-            predicted_yield = 0.0
+        if raw_predicted_yield < 0:
+            raw_predicted_yield = 0.0
 
-        # -----------------------------------------------------
-        # 4. Calculate total farm production
-        # -----------------------------------------------------
 
-        total_production = (
-            predicted_yield * request.farm_area_ha
-        )
 
         # -----------------------------------------------------
         # 5. Generate SHAP explanations
@@ -116,9 +110,31 @@ def create_prediction(
 
         risk_result = risk_service.assess(
             rainfall_mm=request.rainfall_mm,
+            temperature_c=request.temperature_c,
             nitrogen_kgha=request.nitrogen_kgha,
+            phosphorus_kgha=request.phosphorus_kgha,
+            potassium_kgha=request.potassium_kgha,
             soil_ph=request.soil_ph,
-            predicted_yield_tonnes_per_ha=predicted_yield,
+            predicted_yield_tonnes_per_ha=raw_predicted_yield,
+        )
+
+        final_predicted_yield = (
+            raw_predicted_yield * risk_result.yield_multiplier
+        )
+
+        logger.info(
+            "Risk assessment completed: risk=%s multiplier=%.2f final_yield=%.4f tonnes/ha",
+            risk_result.risk_level,
+            risk_result.yield_multiplier,
+            final_predicted_yield,
+        )
+
+        # -----------------------------------------------------
+        # Calculate total farm production
+        # -----------------------------------------------------
+
+        total_production = (
+            final_predicted_yield * request.farm_area_ha
         )
 
         # -----------------------------------------------------
@@ -131,7 +147,7 @@ def create_prediction(
             nitrogen_kgha=request.nitrogen_kgha,
             phosphorus_kgha=request.phosphorus_kgha,
             potassium_kgha=request.potassium_kgha,
-            predicted_yield_tonnes_per_ha=predicted_yield,
+            predicted_yield_tonnes_per_ha=final_predicted_yield,
             risk_level=risk_result.risk_level,
         )
 
@@ -166,7 +182,7 @@ def create_prediction(
             phosphorus_kgha=request.phosphorus_kgha,
             potassium_kgha=request.potassium_kgha,
             farm_area_ha=request.farm_area_ha,
-            expected_yield_tonnes_per_ha=predicted_yield,
+            expected_yield_tonnes_per_ha=final_predicted_yield,
             total_production_tonnes=total_production,
             risk_level=risk_result.risk_level,
             risk_factors_json=json.dumps(
@@ -196,7 +212,7 @@ def create_prediction(
         return PredictionResponse(
             id=record.id,
             expected_yield_tonnes_per_ha=round(
-                predicted_yield,
+                final_predicted_yield,
                 4,
             ),
             total_production_tonnes=round(
