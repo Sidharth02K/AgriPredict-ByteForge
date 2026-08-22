@@ -15,15 +15,15 @@ def test_agripredict_model(model_path):
 
     # 2. Define a sample farm input
     sample_input = {
-        'Location': 'Gujarat',
+        'Location': 'Rajasthan',
         'Crop Type': 'Wheat',
         'Season': 'Rabi',
-        'Rainfall (mm)': 480.0,
-        'Temperature (°C)': 24.0,
+        'Rainfall (mm)': 300.0,
+        'Temperature (°C)': 37.0,
         'Soil pH': 6.8,
-        'Nitrogen (kg/ha)': 75.0,
-        'Phosphorus (kg/ha)': 40.0,
-        'Potassium (kg/ha)': 35.0
+        'Nitrogen (kg/ha)': 1995.0,
+        'Phosphorus (kg/ha)': 9000.0,
+        'Potassium (kg/ha)': 105.0
     }
 
     # Convert to DataFrame
