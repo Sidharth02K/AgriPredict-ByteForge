@@ -452,9 +452,3 @@ Potential extensions include:
 ## ⚠️ Disclaimer
 
 AgriPredict is a decision-support prototype intended for demonstration and experimentation. Predictions should not be treated as a substitute for professional agronomic advice or field-specific measurements.
-
----
-
-## 📜 License
-
-Add the license required by the hackathon/team before public release.
